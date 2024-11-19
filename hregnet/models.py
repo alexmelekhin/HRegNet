@@ -59,8 +59,14 @@ class HierFeatureExtraction(nn.Module):
 
 class HRegNet(nn.Module):
 
-    def __init__(self, args):
+    def __init__(self, args, num_reg_steps: int = 3):
         super(HRegNet, self).__init__()
+
+        if num_reg_steps not in [1, 2, 3]:
+            raise ValueError('num_reg_steps must be 1, 2 or 3')
+        else:
+            self.num_reg_steps = num_reg_steps
+
         self.feature_extraction = HierFeatureExtraction(args)
 
         # Freeze pretrained features when train
@@ -85,6 +91,18 @@ class HRegNet(nn.Module):
         
         R3, t3 = self.svd_head(src_feats['xyz_3'], src_xyz_corres_3, src_dst_weights_3)
 
+        corres_dict = {}
+        corres_dict['src_xyz_corres_3'] = src_xyz_corres_3
+        corres_dict['src_dst_weights_3'] = src_dst_weights_3
+
+        ret_dict = {}
+        ret_dict['rotation'] = [R3]
+        ret_dict['translation'] = [t3]
+        ret_dict['src_feats'] = src_feats
+        ret_dict['dst_feats'] = dst_feats
+        if self.num_reg_steps == 1:
+            return ret_dict
+
         # Fine registration: Layer 2
         src_xyz_2_trans = torch.matmul(R3, src_feats['xyz_2'].permute(0,2,1).contiguous()) + t3.unsqueeze(2)
         src_xyz_2_trans = src_xyz_2_trans.permute(0,2,1).contiguous()
@@ -103,6 +121,14 @@ class HRegNet(nn.Module):
         R2 = T2[:,:3,:3]
         t2 = T2[:,:3,3]
 
+        corres_dict['src_xyz_corres_2'] = src_xyz_corres_2
+        corres_dict['src_dst_weights_2'] = src_dst_weights_2
+
+        ret_dict['rotation'].append(R2)
+        ret_dict['translation'].append(t2)
+        if self.num_reg_steps == 2:
+            return ret_dict
+
         # Fine registration: Layer 1
         src_xyz_1_trans = torch.matmul(R2, src_feats['xyz_1'].permute(0,2,1).contiguous()) + t2.unsqueeze(2)
         src_xyz_1_trans = src_xyz_1_trans.permute(0,2,1).contiguous()
@@ -118,19 +144,11 @@ class HRegNet(nn.Module):
         R1 = T1[:,:3,:3]
         t1 = T1[:,:3,3]
 
-        corres_dict = {}
-        corres_dict['src_xyz_corres_3'] = src_xyz_corres_3
-        corres_dict['src_xyz_corres_2'] = src_xyz_corres_2
         corres_dict['src_xyz_corres_1'] = src_xyz_corres_1
-        corres_dict['src_dst_weights_3'] = src_dst_weights_3
-        corres_dict['src_dst_weights_2'] = src_dst_weights_2
         corres_dict['src_dst_weights_1'] = src_dst_weights_1
 
-        ret_dict = {}
-        ret_dict['rotation'] = [R3, R2, R1]
-        ret_dict['translation'] = [t3, t2, t1]
-        ret_dict['src_feats'] = src_feats
-        ret_dict['dst_feats'] = dst_feats
+        ret_dict['rotation'].append(R1)
+        ret_dict['translation'].append(t1)
 
         return ret_dict
 
