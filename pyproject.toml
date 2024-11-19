@@ -12,3 +12,6 @@ license = {file = "LICENSE"}
 
 [tool.setuptools.packages.find]
 include = ["hregnet*"]
+
+[tool.black]
+line-length = 110
