@@ -114,7 +114,7 @@ class HierFeatureExtraction(nn.Module):
 
 
 class HRegNet(nn.Module):
-    def __init__(self, args, num_reg_steps: int = 3):
+    def __init__(self, args, num_reg_steps: int = 3, use_sim: bool = True, use_neighbor: bool = True):
         super(HRegNet, self).__init__()
 
         if num_reg_steps not in [1, 2, 3]:
@@ -129,7 +129,7 @@ class HRegNet(nn.Module):
             for p in self.parameters():
                 p.requires_grad = False
 
-        self.coarse_corres = CoarseReg(k=8, in_channels=256, use_sim=True, use_neighbor=True)
+        self.coarse_corres = CoarseReg(k=8, in_channels=256, use_sim=use_sim, use_neighbor=use_neighbor)
         self.fine_corres_2 = FineReg(k=8, in_channels=128)
         self.fine_corres_1 = FineReg(k=8, in_channels=64)
 
