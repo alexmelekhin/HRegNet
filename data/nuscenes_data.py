@@ -25,13 +25,13 @@ def read_nuscenes_bin_voxel(filename, npoints=None, voxel_size=None):
         scan = scan[sel]
     if npoints is None:
         return scan.astype('float32')
-    
+
     N = scan.shape[0]
     if N >= npoints:
         sample_idx = np.random.choice(N, npoints, replace=False)
     else:
         sample_idx = np.concatenate((np.arange(N), np.random.choice(N, npoints-N, replace=True)), axis=-1)
-    
+
     scan = scan[sample_idx, :].astype('float32')
     return scan
 
@@ -46,7 +46,7 @@ class NuscenesDataset(Dataset):
         self.data_list = data_list
         self.augment = augment
         self.dataset = self.make_dataset()
-    
+
     def make_dataset(self):
         last_row = np.zeros((1,4), dtype=np.float32)
         last_row[:,3] = 1.0
@@ -75,9 +75,9 @@ class NuscenesDataset(Dataset):
                     data_dict['points2'] = dst_fn
                     data_dict['Tr'] = rela_pose
                     dataset.append(data_dict)
-        
+
         return dataset
-    
+
     def __getitem__(self, index):
         data_dict = self.dataset[index]
         src_points = read_nuscenes_bin_voxel(data_dict['points1'], self.npoints, self.voxel_size)
@@ -91,13 +91,13 @@ class NuscenesDataset(Dataset):
             aug_T[:3,:3] = rand_rotm
             src_points = apply_transform(src_points, aug_T)
             Tr = Tr.dot(np.linalg.inv(aug_T))
-        
+
         src_points = torch.from_numpy(src_points)
         dst_points = torch.from_numpy(dst_points)
         Tr = torch.from_numpy(Tr)
         R = Tr[:3,:3]
         t = Tr[:3,3]
         return src_points, dst_points, R, t
-    
+
     def __len__(self):
         return len(self.dataset)

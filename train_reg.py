@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument('--use_weights', action='store_true')
     parser.add_argument('--pretrain_feats', type=str, default=None)
     parser.add_argument('--alpha', type=float, default=1.0)
-    
+
     return parser.parse_args()
 
 def val_reg(args, net):
@@ -60,7 +60,7 @@ def val_reg(args, net):
                             shuffle=False,
                             pin_memory=True,
                             drop_last=True)
-    
+
     net.eval()
     total_loss = 0
     total_R_loss = 0
@@ -104,7 +104,7 @@ def test_reg(args, net):
                             shuffle=False,
                             pin_memory=True,
                             drop_last=True)
-    
+
     net.eval()
     total_loss = 0
     total_R_loss = 0
@@ -142,20 +142,20 @@ def train_reg(args):
         train_dataset = NuscenesDataset(args.root, train_seqs, args.npoints, args.voxel_size, args.data_list, args.augment)
     else:
         raise('Not implemented')
-    
+
     train_loader = DataLoader(train_dataset,
                               batch_size=args.batch_size,
                               num_workers=4,
                               shuffle=True,
                               pin_memory=True,
                               drop_last=True)
-    
+
     net = HRegNet(args, num_reg_steps=3, use_sim=args.use_sim, use_neighbor=args.use_neighbor)
     net.feature_extraction.load_state_dict(torch.load(args.pretrain_feats))
 
     if args.use_wandb:
         wandb.watch(net)
-    
+
     net.cuda()
 
     optimizer = optim.Adam(net.parameters(), lr=args.lr)
@@ -189,7 +189,7 @@ def train_reg(args):
                 l_trans += l_trans_
                 l_R += l_R_
                 l_t += l_t_
-            
+
             l_trans = l_trans / 3.0
             loss = l_trans
             loss.backward()
@@ -202,36 +202,36 @@ def train_reg(args):
                 pbar.set_description('Train Epoch:{}[{}/{}({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch+1, i, len(train_loader), 100. * i/len(train_loader), loss.item()
                 ))
-        
+
         total_loss /= count
         total_val_loss, total_val_R, total_val_t = val_reg(args, net)
         total_test_loss, total_test_R, total_test_t = test_reg(args, net)
         if args.use_wandb:
-            wandb.log({"train loss":total_loss, 
+            wandb.log({"train loss":total_loss,
                        "val loss": total_val_loss, \
                        "val R": total_val_R, \
                        "val t":total_val_t, \
                        "test loss":total_test_loss,\
                        "test R":total_test_R,\
                        "test_t":total_test_t})
-        
+
         print('\n Epoch {} finished. Training loss: {:.4f} Valiadation loss: {:.4f}'.\
             format(epoch+1, total_loss, total_val_loss))
-        
+
         ckpt_dir = os.path.join(args.ckpt_dir, args.dataset + '_ckpt_'+args.runname)
         if not os.path.exists(ckpt_dir):
             os.makedirs(ckpt_dir)
-        
+
         if total_loss < best_train_loss:
             torch.save(net.state_dict(), os.path.join(ckpt_dir, 'best_train.pth'))
             best_train_loss = total_loss
             best_train_epoch = epoch + 1
-        
+
         if total_val_loss < best_val_loss:
             torch.save(net.state_dict(), os.path.join(ckpt_dir, 'best_val.pth'))
             best_val_loss = total_val_loss
             best_val_epoch = epoch + 1
-        
+
         print('Best train epoch: {} Best train loss: {:.4f} Best val epoch: {} Best val loss: {:.4f}'.format(
             best_train_epoch, best_train_loss, best_val_epoch, best_val_loss
         ))
