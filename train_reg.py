@@ -35,6 +35,8 @@ def parse_args():
     parser.add_argument('--freeze_detector', action='store_true')
     parser.add_argument('--freeze_feats', action='store_true')
     parser.add_argument('--use_fps', action='store_true')
+    parser.add_argument('--use_sim', action='store_true')
+    parser.add_argument('--use_neighbor', action='store_true')
     parser.add_argument('--data_list', type=str, default='')
     parser.add_argument('--use_weights', action='store_true')
     parser.add_argument('--pretrain_feats', type=str, default=None)
@@ -148,7 +150,7 @@ def train_reg(args):
                               pin_memory=True,
                               drop_last=True)
     
-    net = HRegNet(args)
+    net = HRegNet(args, num_reg_steps=3, use_sim=args.use_sim, use_neighbor=args.use_neighbor)
     net.feature_extraction.load_state_dict(torch.load(args.pretrain_feats))
 
     if args.use_wandb:
