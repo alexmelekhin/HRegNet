@@ -7,9 +7,9 @@ from torch.optim.lr_scheduler import StepLR
 from data.kitti_data import KittiDataset
 from data.nuscenes_data import NuscenesDataset
 
-from models.models import HRegNet
-from models.losses import transformation_loss
-from models.utils import set_seed
+from hregnet.models import HRegNet
+from hregnet.losses import transformation_loss
+from hregnet.utils import set_seed
 
 from tqdm import tqdm
 import argparse

@@ -8,7 +8,7 @@ import glob
 import numpy as np
 import MinkowskiEngine as ME
 
-from models.utils import generate_rand_rotm, generate_rand_trans, apply_transform
+from hregnet.utils import generate_rand_rotm, generate_rand_trans, apply_transform
 
 def read_nuscenes_bin_voxel(filename, npoints=None, voxel_size=None):
     '''
