@@ -1,3 +1,5 @@
+from time import time
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -115,7 +117,7 @@ class HierFeatureExtraction(nn.Module):
 
 class HRegNet(nn.Module):
     def __init__(self, args, num_reg_steps: int = 3, use_sim: bool = True, use_neighbor: bool = True):
-        super(HRegNet, self).__init__()
+        super().__init__()
 
         if num_reg_steps not in [1, 2, 3]:
             raise ValueError("num_reg_steps must be 1, 2 or 3")
@@ -135,12 +137,26 @@ class HRegNet(nn.Module):
 
         self.svd_head = WeightedSVDHead()
 
+        self.stats_history = {
+            "src_feats_time": [], "dst_feats_time": [], "coarse_reg_time": []
+        }
+        if self.num_reg_steps == 2:
+            self.stats_history["fine_reg_2_time"] = []
+        elif self.num_reg_steps == 3:
+            self.stats_history["fine_reg_2_time"] = []
+            self.stats_history["fine_reg_1_time"] = []
+
     def forward(self, src_points, dst_points):
         # Feature extraction
+        t_s = time()
         src_feats = self.feature_extraction(src_points)
+        self.stats_history["src_feats_time"].append(time() - t_s)
+        t_s = time()
         dst_feats = self.feature_extraction(dst_points)
+        self.stats_history["dst_feats_time"].append(time() - t_s)
 
         # Coarse registration
+        t_s = time()
         src_xyz_corres_3, src_dst_weights_3 = self.coarse_corres(
             src_feats["xyz_3"],
             src_feats["desc_3"],
@@ -161,10 +177,14 @@ class HRegNet(nn.Module):
         ret_dict["translation"] = [t3]
         ret_dict["src_feats"] = src_feats
         ret_dict["dst_feats"] = dst_feats
+
+        self.stats_history["coarse_reg_time"].append(time() - t_s)
+
         if self.num_reg_steps == 1:
             return ret_dict
 
         # Fine registration: Layer 2
+        t_s = time()
         src_xyz_2_trans = torch.matmul(R3, src_feats["xyz_2"].permute(0, 2, 1).contiguous()) + t3.unsqueeze(2)
         src_xyz_2_trans = src_xyz_2_trans.permute(0, 2, 1).contiguous()
         src_xyz_corres_2, src_dst_weights_2 = self.fine_corres_2(
@@ -193,10 +213,14 @@ class HRegNet(nn.Module):
 
         ret_dict["rotation"].append(R2)
         ret_dict["translation"].append(t2)
+
+        self.stats_history["fine_reg_2_time"].append(time() - t_s)
+
         if self.num_reg_steps == 2:
             return ret_dict
 
         # Fine registration: Layer 1
+        t_s = time()
         src_xyz_1_trans = torch.matmul(R2, src_feats["xyz_1"].permute(0, 2, 1).contiguous()) + t2.unsqueeze(2)
         src_xyz_1_trans = src_xyz_1_trans.permute(0, 2, 1).contiguous()
         src_xyz_corres_1, src_dst_weights_1 = self.fine_corres_1(
@@ -222,6 +246,8 @@ class HRegNet(nn.Module):
 
         ret_dict["rotation"].append(R1)
         ret_dict["translation"].append(t1)
+
+        self.stats_history["fine_reg_1_time"].append(time() - t_s)
 
         return ret_dict
 
