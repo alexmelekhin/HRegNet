@@ -8,32 +8,40 @@ from .layers import CoarseReg, DescExtractor, FineReg, KeypointDetector, Weighte
 
 
 class HierFeatureExtraction(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, model_version="original"):
         super(HierFeatureExtraction, self).__init__()
+
+        if model_version not in ["original", "light"]:
+            raise ValueError("model_version must be 'original' or 'light'")
 
         self.use_fps = args.use_fps
         self.use_weights = args.use_weights
 
+        configs = {
+            "original": {
+                "detector_out_channels": [[32, 32, 64], [64, 64, 128], [128, 128, 256]],
+                "desc_out_channels": [[32, 32, 64], [64, 64, 128], [128, 128, 256]],
+                "desc_dim": [64, 128, 256],
+            },
+            "light": {
+                "detector_out_channels": [[16, 16, 32], [32, 32, 64], [64, 64, 128]],
+                "desc_out_channels": [[16, 16, 32], [32, 32, 64], [64, 64, 128]],
+                "desc_dim": [32, 64, 128],
+            },
+        }
+
+        config = configs[model_version]
+
         self.detector_1 = KeypointDetector(
-            nsample=1024,
-            k=64,
-            in_channels=0,
-            out_channels=[32, 32, 64],
-            fps=self.use_fps,
+            nsample=1024, k=64, in_channels=0, out_channels=config["detector_out_channels"][0], fps=self.use_fps
         )
         self.detector_2 = KeypointDetector(
-            nsample=512,
-            k=32,
-            in_channels=64,
-            out_channels=[64, 64, 128],
-            fps=self.use_fps,
+            nsample=512, k=32, in_channels=config["detector_out_channels"][0][-1],
+            out_channels=config["detector_out_channels"][1], fps=self.use_fps
         )
         self.detector_3 = KeypointDetector(
-            nsample=256,
-            k=16,
-            in_channels=128,
-            out_channels=[128, 128, 256],
-            fps=self.use_fps,
+            nsample=256, k=16, in_channels=config["detector_out_channels"][1][-1],
+            out_channels=config["detector_out_channels"][2], fps=self.use_fps
         )
 
         if args.freeze_detector:
@@ -41,13 +49,16 @@ class HierFeatureExtraction(nn.Module):
                 p.requires_grad = False
 
         self.desc_extractor_1 = DescExtractor(
-            in_channels=0, out_channels=[32, 32, 64], C_detector=64, desc_dim=64
+            in_channels=0, out_channels=config["desc_out_channels"][0],
+            C_detector=config["detector_out_channels"][0][-1], desc_dim=config["desc_dim"][0]
         )
         self.desc_extractor_2 = DescExtractor(
-            in_channels=64, out_channels=[64, 64, 128], C_detector=128, desc_dim=128
+            in_channels=config["detector_out_channels"][0][-1], out_channels=config["desc_out_channels"][1],
+            C_detector=config["detector_out_channels"][1][-1], desc_dim=config["desc_dim"][1]
         )
         self.desc_extractor_3 = DescExtractor(
-            in_channels=128, out_channels=[128, 128, 256], C_detector=256, desc_dim=256
+            in_channels=config["detector_out_channels"][1][-1], out_channels=config["desc_out_channels"][2],
+            C_detector=config["detector_out_channels"][2][-1], desc_dim=config["desc_dim"][2]
         )
 
     def forward(self, points):
@@ -116,24 +127,29 @@ class HierFeatureExtraction(nn.Module):
 
 
 class HRegNet(nn.Module):
-    def __init__(self, args, num_reg_steps: int = 3, use_sim: bool = True, use_neighbor: bool = True):
+    def __init__(self, args, num_reg_steps=3, use_sim=True, use_neighbor=True, model_version="original"):
         super().__init__()
+
+        if model_version not in ["original", "light"]:
+            raise ValueError("model_version must be 'original' or 'light'")
 
         if num_reg_steps not in [1, 2, 3]:
             raise ValueError("num_reg_steps must be 1, 2 or 3")
-        else:
-            self.num_reg_steps = num_reg_steps
+        self.num_reg_steps = num_reg_steps
 
-        self.feature_extraction = HierFeatureExtraction(args)
+        self.feature_extraction = HierFeatureExtraction(args, model_version=model_version)
 
         # Freeze pretrained features when train
         if args.freeze_feats:
             for p in self.parameters():
                 p.requires_grad = False
 
-        self.coarse_corres = CoarseReg(k=8, in_channels=256, use_sim=use_sim, use_neighbor=use_neighbor)
-        self.fine_corres_2 = FineReg(k=8, in_channels=128)
-        self.fine_corres_1 = FineReg(k=8, in_channels=64)
+        in_channels_coarse = 256 if model_version == "original" else 128
+        self.coarse_corres = CoarseReg(k=8, in_channels=in_channels_coarse, use_sim=use_sim, use_neighbor=use_neighbor)
+
+        in_channels_fine = [128, 64] if model_version == "original" else [64, 32]
+        self.fine_corres_2 = FineReg(k=8, in_channels=in_channels_fine[0])
+        self.fine_corres_1 = FineReg(k=8, in_channels=in_channels_fine[1])
 
         self.svd_head = WeightedSVDHead()
 
