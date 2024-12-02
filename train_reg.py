@@ -41,6 +41,7 @@ def parse_args():
     parser.add_argument('--use_weights', action='store_true')
     parser.add_argument('--pretrain_feats', type=str, default=None)
     parser.add_argument('--alpha', type=float, default=1.0)
+    parser.add_argument('--light_feats', action='store_true')
 
     return parser.parse_args()
 
@@ -150,7 +151,13 @@ def train_reg(args):
                               pin_memory=True,
                               drop_last=True)
 
-    net = HRegNet(args, num_reg_steps=3, use_sim=args.use_sim, use_neighbor=args.use_neighbor)
+    net = HRegNet(
+        args,
+        num_reg_steps=3,
+        use_sim=args.use_sim,
+        use_neighbor=args.use_neighbor,
+        model_version=("light" if args.light_feats else "original")
+    )
     net.feature_extraction.load_state_dict(torch.load(args.pretrain_feats))
 
     if args.use_wandb:

@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument('--use_fps', action='store_true')
     parser.add_argument('--use_weights', action='store_true')
     parser.add_argument('--use_wandb', action='store_true')
+    parser.add_argument('--light_feats', action='store_true')
 
     return parser.parse_args()
 
@@ -131,7 +132,7 @@ def train_feats(args):
                               pin_memory=True,
                               drop_last=True)
     
-    net = HierFeatureExtraction(args)
+    net = HierFeatureExtraction(args, model_version=("light" if args.light_feats else "original"))
     if args.train_desc:
         net.load_state_dict(torch.load(args.pretrain_detector))
     if args.use_wandb:
